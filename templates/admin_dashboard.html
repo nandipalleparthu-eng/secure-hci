@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Dashboard — Secure HCI</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #080c14; color: #e0e8f0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh; padding: 32px 16px;
+    }
+    .container { max-width: 760px; margin: 0 auto; }
+
+    header {
+      display: flex; align-items: center;
+      justify-content: space-between; margin-bottom: 32px;
+    }
+    header h1 { font-size: 1.3rem; color: #7ec8f8;
+                letter-spacing: 2px; text-transform: uppercase; }
+    .nav-links { display: flex; gap: 12px; }
+    .nav-links a {
+      font-size: 0.78rem; color: #445; text-decoration: none;
+      padding: 6px 14px; border: 1px solid #1a2a3a;
+      border-radius: 6px; letter-spacing: 1px;
+    }
+    .nav-links a:hover { color: #7ec8f8; border-color: #2a6ac0; }
+
+    .card {
+      background: #0d1520; border: 1.5px solid #1a3050;
+      border-radius: 12px; padding: 28px;
+      margin-bottom: 24px;
+    }
+    .card h2 { font-size: 0.9rem; color: #7ec8f8;
+               text-transform: uppercase; letter-spacing: 2px;
+               margin-bottom: 20px; }
+
+    .form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 160px; }
+    label { font-size: 0.7rem; color: #556;
+            text-transform: uppercase; letter-spacing: 1px; }
+    input[type=text], input[type=file] {
+      padding: 9px 12px; background: #0a1020;
+      border: 1px solid #1a3050; border-radius: 6px;
+      color: #e0e8f0; font-size: 0.9rem;
+    }
+    input[type=text]:focus { outline: none; border-color: #2a6ac0; }
+    input[type=file] { cursor: pointer; }
+
+    .btn {
+      padding: 10px 24px; border-radius: 6px;
+      font-size: 0.9rem; cursor: pointer;
+      letter-spacing: 1px; border: none;
+    }
+    .btn-primary { background: #1a4a8a; color: #fff; border: 1.5px solid #2a6ac0; }
+    .btn-primary:hover { background: #2060b0; }
+    .btn-danger { background: rgba(240,85,85,0.15); color: #f05555;
+                  border: 1px solid #f05555; padding: 6px 14px; font-size: 0.8rem; }
+    .btn-danger:hover { background: rgba(240,85,85,0.3); }
+
+    .users-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 16px;
+    }
+    .user-card {
+      background: #0a1020; border: 1px solid #1a2a3a;
+      border-radius: 10px; overflow: hidden; text-align: center;
+    }
+    .user-card img {
+      width: 100%; height: 140px; object-fit: cover;
+      display: block; background: #111;
+    }
+    .user-card .info { padding: 10px 12px; }
+    .user-card .name { font-size: 0.9rem; font-weight: 600;
+                       color: #7ec8f8; margin-bottom: 8px; }
+    .user-card form { margin: 0; }
+
+    .empty { color: #334; font-size: 0.85rem;
+             text-align: center; padding: 24px; }
+
+    .flash-msg {
+      padding: 10px 16px; border-radius: 8px;
+      margin-bottom: 20px; font-size: 0.85rem;
+    }
+    .flash-success { background: rgba(78,219,122,0.12);
+                     border: 1px solid #4edb7a; color: #4edb7a; }
+    .flash-error   { background: rgba(240,85,85,0.12);
+                     border: 1px solid #f05555; color: #f05555; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>⚙️ Admin Dashboard</h1>
+    <div class="nav-links">
+      <a href="/">← Main App</a>
+      <a href="/admin/logout">Logout</a>
+    </div>
+  </header>
+
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <div class="flash-msg {% if 'deleted' in messages[0] or 'Wrong' in messages[0] %}flash-error{% else %}flash-success{% endif %}">
+        {{ messages[0] }}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <!-- Upload new user -->
+  <div class="card">
+    <h2>➕ Add New User</h2>
+    <form method="POST" action="/admin/upload" enctype="multipart/form-data">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Full Name</label>
+          <input type="text" name="name" placeholder="e.g. parthu" required/>
+        </div>
+        <div class="form-group">
+          <label>Face Photo</label>
+          <input type="file" name="photo" accept=".jpg,.jpeg,.png,.bmp" required/>
+        </div>
+        <button type="submit" class="btn btn-primary">Upload</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Registered users -->
+  <div class="card">
+    <h2>👥 Registered Users ({{ users|length }})</h2>
+    {% if users %}
+      <div class="users-grid">
+        {% for user in users %}
+        <div class="user-card">
+          <img src="/admin/photo/{{ user.file }}" alt="{{ user.name }}"
+               onerror="this.style.background='#1a2a3a';this.style.height='140px'"/>
+          <div class="info">
+            <div class="name">{{ user.name }}</div>
+            <form method="POST" action="/admin/delete/{{ user.file }}"
+                  onsubmit="return confirm('Delete {{ user.name }}?')">
+              <button type="submit" class="btn btn-danger">🗑 Delete</button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty">No users registered yet. Add one above.</div>
+    {% endif %}
+  </div>
+
+</div>
+</body>
+</html>

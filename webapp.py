@@ -24,12 +24,14 @@ from PIL import Image
 
 from face.face_auth_lite import FaceAuthenticator, FaceAuthState
 from gesture.gesture_controller import GestureController, GestureData, GestureState
+from admin_routes import admin_bp
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "securehci-secret"
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "securehci-secret")
+app.register_blueprint(admin_bp)
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",
@@ -121,6 +123,13 @@ def decode_frame(data_url: str) -> np.ndarray | None:
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/admin/photo/<filename>")
+def serve_photo(filename):
+    from flask import send_from_directory
+    from werkzeug.utils import secure_filename
+    return send_from_directory("data/known_faces", secure_filename(filename))
 
 
 @socketio.on("connect")

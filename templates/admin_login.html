@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Login — Secure HCI</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #080c14; color: #e0e8f0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh; display: flex;
+      align-items: center; justify-content: center;
+    }
+    .card {
+      background: #0d1520; border: 1.5px solid #1a3050;
+      border-radius: 12px; padding: 40px 36px;
+      width: 360px; box-shadow: 0 0 40px rgba(0,100,200,0.15);
+    }
+    h1 { font-size: 1.2rem; color: #7ec8f8; letter-spacing: 2px;
+         text-transform: uppercase; text-align: center; margin-bottom: 28px; }
+    label { font-size: 0.75rem; color: #556; text-transform: uppercase;
+            letter-spacing: 1px; display: block; margin-bottom: 6px; }
+    input[type=password] {
+      width: 100%; padding: 10px 14px; background: #0a1020;
+      border: 1px solid #1a3050; border-radius: 6px;
+      color: #e0e8f0; font-size: 0.95rem; margin-bottom: 20px;
+    }
+    input[type=password]:focus { outline: none; border-color: #2a6ac0; }
+    button {
+      width: 100%; padding: 11px; background: #1a4a8a;
+      border: 1.5px solid #2a6ac0; border-radius: 6px;
+      color: #fff; font-size: 1rem; cursor: pointer; letter-spacing: 1px;
+    }
+    button:hover { background: #2060b0; }
+    .error {
+      background: rgba(240,85,85,0.12); border: 1px solid #f05555;
+      border-radius: 6px; padding: 8px 12px;
+      color: #f05555; font-size: 0.82rem; margin-bottom: 16px;
+    }
+    .back { text-align: center; margin-top: 16px; }
+    .back a { color: #445; font-size: 0.78rem; text-decoration: none; }
+    .back a:hover { color: #7ec8f8; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <h1>🔐 Admin Login</h1>
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <div class="error">{{ messages[0] }}</div>
+    {% endif %}
+  {% endwith %}
+  <form method="POST">
+    <label>Admin Password</label>
+    <input type="password" name="password" placeholder="Enter password" autofocus/>
+    <button type="submit">Login</button>
+  </form>
+  <div class="back"><a href="/">← Back to main app</a></div>
+</div>
+</body>
+</html>
