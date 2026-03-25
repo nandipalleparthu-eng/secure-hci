@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Secure HCI System</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #080c14; color: #e0e8f0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh; display: flex;
+      flex-direction: column; align-items: center;
+      justify-content: center; gap: 16px; padding: 16px;
+    }
+    header { text-align: center; }
+    header h1 { font-size: 1.4rem; letter-spacing: 3px; text-transform: uppercase; color: #7ec8f8; }
+    header p  { font-size: 0.75rem; color: #445; margin-top: 4px; letter-spacing: 1px; }
+
+    #main-card {
+      position: relative; width: min(720px, 100vw - 32px);
+      border-radius: 12px; overflow: hidden;
+      border: 1.5px solid #1a3050;
+      box-shadow: 0 0 40px rgba(0,100,200,0.15);
+    }
+    video { display: none; }
+    #canvas { display: block; width: 100%; background: #000; }
+
+    #status-overlay {
+      position: absolute; top: 0; left: 0; right: 0;
+      background: rgba(5,10,20,0.82); padding: 10px 16px;
+      display: flex; gap: 20px; flex-wrap: wrap;
+      backdrop-filter: blur(4px);
+    }
+    .stat { display: flex; flex-direction: column; gap: 1px; }
+    .stat .label { font-size: 0.62rem; color: #445; text-transform: uppercase; letter-spacing: 1px; }
+    .stat .value { font-size: 0.88rem; font-weight: 600; }
+
+    .c-green  { color: #4edb7a; }
+    .c-red    { color: #f05555; }
+    .c-blue   { color: #5ab4ff; }
+    .c-yellow { color: #ffd966; }
+    .c-gray   { color: #667; }
+    .c-white  { color: #dde; }
+
+    #conn-badge {
+      margin-left: auto; align-self: center;
+      font-size: 0.7rem; padding: 3px 10px;
+      border-radius: 20px; font-weight: 600;
+      background: rgba(240,85,85,0.15); color: #f05555; border: 1px solid #f05555;
+    }
+    #conn-badge.ok { background: rgba(78,219,122,0.15); color: #4edb7a; border-color: #4edb7a; }
+
+    #hint-bar {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: rgba(5,10,20,0.75); padding: 6px 14px;
+      font-size: 0.68rem; color: #445; letter-spacing: 1px; text-align: right;
+    }
+    #gesture-dot {
+      position: absolute; width: 16px; height: 16px;
+      border-radius: 50%; background: rgba(78,219,122,0.5);
+      border: 2px solid #4edb7a; pointer-events: none;
+      transform: translate(-50%,-50%); display: none;
+    }
+    #cursor {
+      position: fixed; width: 22px; height: 22px;
+      border-radius: 50%; border: 2px solid #4edb7a;
+      background: rgba(78,219,122,0.2); pointer-events: none;
+      transform: translate(-50%,-50%); z-index: 9999; display: none;
+    }
+
+    #start-wrap {
+      position: absolute; inset: 0; display: flex;
+      flex-direction: column; align-items: center;
+      justify-content: center; background: rgba(5,10,20,0.88); gap: 12px;
+    }
+    #start-wrap.hidden { display: none; }
+    #start-btn {
+      padding: 12px 36px; background: #1a4a8a;
+      border: 1.5px solid #2a6ac0; border-radius: 8px;
+      color: #fff; font-size: 1rem; cursor: pointer; letter-spacing: 1px;
+    }
+    #start-btn:hover { background: #2060b0; }
+    #start-wrap p { font-size: 0.78rem; color: #556; text-align: center; max-width: 300px; }
+
+    #bottom-status { font-size: 0.75rem; color: #445; letter-spacing: 1px; text-align: center; }
+
+    #guide {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 10px; width: min(720px, 100vw - 32px);
+    }
+    .g-card {
+      background: #0d1520; border: 1px solid #1a2a3a;
+      border-radius: 8px; padding: 8px 10px;
+      text-align: center; font-size: 0.72rem; color: #556;
+    }
+    .g-card .icon { font-size: 1.3rem; display: block; margin-bottom: 3px; }
+    .g-card .name { color: #7ec8f8; font-weight: 600; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🔐 Secure HCI System</h1>
+  <p>Face Authentication + Gesture Mouse Control</p>
+</header>
+
+<div id="main-card">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="canvas" width="720" height="405"></canvas>
+
+  <div id="status-overlay">
+    <div class="stat"><span class="label">User</span><span class="value c-gray" id="s-user">—</span></div>
+    <div class="stat"><span class="label">Authorized</span><span class="value c-gray" id="s-auth">—</span></div>
+    <div class="stat"><span class="label">Gesture</span><span class="value c-gray" id="s-gesture">—</span></div>
+    <div class="stat"><span class="label">Faces</span><span class="value c-yellow" id="s-faces">—</span></div>
+    <div class="stat"><span class="label">Control</span><span class="value c-gray" id="s-control">—</span></div>
+    <div class="stat"><span class="label">FPS</span><span class="value c-white" id="s-fps">—</span></div>
+    <span id="conn-badge">● Connecting</span>
+  </div>
+
+  <div id="gesture-dot"></div>
+  <div id="hint-bar">F — Freeze/Unfreeze &nbsp;|&nbsp; Webcam required</div>
+
+  <div id="start-wrap">
+    <button id="start-btn" onclick="startCamera()">▶ &nbsp;Start Camera</button>
+    <p>Allow webcam access when prompted. Your face will be authenticated in real time.</p>
+  </div>
+</div>
+
+<div id="bottom-status">Connecting to server...</div>
+
+<div id="guide">
+  <div class="g-card"><span class="icon">☝️</span><span class="name">MOVE</span><br>Index finger</div>
+  <div class="g-card"><span class="icon">🤏</span><span class="name">CLICK</span><br>Pinch thumb+index</div>
+  <div class="g-card"><span class="icon">✌️</span><span class="name">RIGHT CLICK</span><br>Index+middle up</div>
+  <div class="g-card"><span class="icon">👌</span><span class="name">DOUBLE CLICK</span><br>3-finger pinch</div>
+  <div class="g-card"><span class="icon">🖐️</span><span class="name">SCROLL</span><br>Open palm</div>
+  <div class="g-card"><span class="icon">✊</span><span class="name">PAUSE</span><br>Fist</div>
+  <div class="g-card"><span class="icon">🤙</span><span class="name">SWITCH TAB</span><br>Pinky+thumb out</div>
+  <div class="g-card"><span class="icon">🖖</span><span class="name">SCREENSHOT</span><br>4 fingers, no thumb</div>
+  <div class="g-card"><span class="icon">☝️✌️</span><span class="name">ZOOM IN</span><br>Index+pinky up</div>
+  <div class="g-card"><span class="icon">👈</span><span class="name">GO BACK</span><br>Swipe index left</div>
+  <div class="g-card"><span class="icon">👉</span><span class="name">GO FORWARD</span><br>Swipe index right</div>
+  <div class="g-card"><span class="icon">🤞</span><span class="name">DRAG</span><br>Index+middle cross</div>
+</div>
+
+<div id="cursor"></div>
+
+<script>
+  // ── CONFIG ────────────────────────────────────────────────
+  const BACKEND_URL = "https://secure-hci.onrender.com";
+  // ─────────────────────────────────────────────────────────
+
+  const video      = document.getElementById('video');
+  const canvas     = document.getElementById('canvas');
+  const ctx        = canvas.getContext('2d');
+  const cursor     = document.getElementById('cursor');
+  const dot        = document.getElementById('gesture-dot');
+  const startWrap  = document.getElementById('start-wrap');
+  const bottomStat = document.getElementById('bottom-status');
+  const connBadge  = document.getElementById('conn-badge');
+
+  const sUser    = document.getElementById('s-user');
+  const sAuth    = document.getElementById('s-auth');
+  const sGesture = document.getElementById('s-gesture');
+  const sFaces   = document.getElementById('s-faces');
+  const sControl = document.getElementById('s-control');
+  const sFps     = document.getElementById('s-fps');
+
+  const socket = io(BACKEND_URL, { transports: ['websocket'] });
+
+  let streaming = false, freeze = false;
+  let frameCount = 0, lastFpsTime = performance.now();
+  let curX = window.innerWidth / 2, curY = window.innerHeight / 2;
+  let targetX = curX, targetY = curY;
+  const SMOOTH = 0.18;
+  let lastClick = 0, lastScroll = 0;
+
+  // ── Socket ────────────────────────────────────────────────
+  socket.on('connect', () => {
+    connBadge.textContent = '● Connected';
+    connBadge.classList.add('ok');
+    bottomStat.textContent = 'Connected ✓ — Click Start Camera';
+  });
+
+  socket.on('disconnect', () => {
+    connBadge.textContent = '● Disconnected';
+    connBadge.classList.remove('ok');
+    bottomStat.textContent = '⚠ Disconnected from server';
+  });
+
+  socket.on('result', (d) => {
+    updateUI(d);
+    if (d.hand_present && d.authorized && !freeze) {
+      handleGesture(d);
+    } else {
+      dot.style.display = 'none';
+      cursor.style.display = 'none';
+    }
+  });
+
+  // ── UI ────────────────────────────────────────────────────
+  function updateUI(d) {
+    sUser.textContent = d.user;
+    sUser.className   = 'value ' + (d.authorized ? 'c-green' : 'c-gray');
+    sAuth.textContent = d.authorized ? 'YES ✓' : 'NO';
+    sAuth.className   = 'value ' + (d.authorized ? 'c-green' : 'c-red');
+    sFaces.textContent = d.face_count;
+
+    const gc = {
+      MOVE:'c-green', CLICK:'c-blue', RIGHT_CLICK:'c-blue',
+      DOUBLE_CLICK:'c-blue', DRAG:'c-yellow', SCROLL:'c-blue',
+      PAUSE:'c-red', SWITCH_TAB:'c-yellow', SCREENSHOT:'c-white',
+      ZOOM_IN:'c-yellow', WORKSPACE_LEFT:'c-yellow', WORKSPACE_RIGHT:'c-yellow',
+      IDLE:'c-gray'
+    };
+    sGesture.textContent = d.gesture.replace('_', ' ');
+    sGesture.className   = 'value ' + (gc[d.gesture] || 'c-gray');
+
+    const ctrl = d.authorized && !freeze;
+    sControl.textContent = ctrl ? 'ENABLED' : 'DISABLED';
+    sControl.className   = 'value ' + (ctrl ? 'c-green' : 'c-red');
+
+    frameCount++;
+    const now = performance.now();
+    if (now - lastFpsTime >= 1000) {
+      sFps.textContent = (frameCount * 1000 / (now - lastFpsTime)).toFixed(1);
+      frameCount = 0; lastFpsTime = now;
+    }
+  }
+
+  // ── Gesture handler ───────────────────────────────────────
+  function handleGesture(d) {
+    dot.style.display = 'block';
+    dot.style.left = (d.pointer_x * 100) + '%';
+    dot.style.top  = (d.pointer_y * 100) + '%';
+
+    const now = Date.now();
+
+    if (d.gesture === 'MOVE' || d.gesture === 'DRAG') {
+      targetX = d.pointer_x * window.innerWidth;
+      targetY = d.pointer_y * window.innerHeight;
+      cursor.style.display = 'block';
+      cursor.style.borderColor = d.gesture === 'DRAG' ? '#ffd966' : '#4edb7a';
+    }
+
+    if (d.gesture === 'CLICK' && now - lastClick > 800) {
+      lastClick = now;
+      flashCursor('#4edb7a');
+      dispatch(curX, curY, ['mousedown', 'mouseup', 'click']);
+    }
+
+    if (d.gesture === 'RIGHT_CLICK' && now - lastClick > 800) {
+      lastClick = now;
+      flashCursor('#5ab4ff');
+      dispatch(curX, curY, ['contextmenu']);
+    }
+
+    if (d.gesture === 'DOUBLE_CLICK' && now - lastClick > 800) {
+      lastClick = now;
+      flashCursor('#ffd966');
+      dispatch(curX, curY, ['dblclick']);
+    }
+
+    if (d.gesture === 'SCROLL' && now - lastScroll > 100) {
+      lastScroll = now;
+      const el = document.elementFromPoint(curX, curY);
+      if (el) el.dispatchEvent(new WheelEvent('wheel', {
+        deltaY: -(d.scroll_delta * 120), bubbles: true
+      }));
+    }
+
+    if (d.gesture === 'SWITCH_TAB' && now - lastClick > 1200) {
+      lastClick = now;
+      flashCursor('#ffd966');
+      // Open next tab via keyboard shortcut hint (browser security limits this)
+      bottomStat.textContent = '🔄 Switch Tab gesture detected!';
+      setTimeout(() => bottomStat.textContent = '', 1500);
+    }
+
+    if (d.gesture === 'SCREENSHOT' && now - lastClick > 1500) {
+      lastClick = now;
+      flashCursor('#ffffff');
+      takeScreenshot();
+    }
+
+    if (d.gesture === 'ZOOM_IN' && now - lastScroll > 400) {
+      lastScroll = now;
+      const current = parseFloat(document.body.style.zoom || '1');
+      document.body.style.zoom = Math.min(current + 0.1, 2.0).toFixed(1);
+      bottomStat.textContent = '🔍 Zoom: ' + document.body.style.zoom;
+      setTimeout(() => bottomStat.textContent = '', 1000);
+    }
+
+    if (d.gesture === 'WORKSPACE_LEFT' && now - lastClick > 1000) {
+      lastClick = now;
+      flashCursor('#ffd966');
+      window.history.back();
+    }
+
+    if (d.gesture === 'WORKSPACE_RIGHT' && now - lastClick > 1000) {
+      lastClick = now;
+      flashCursor('#ffd966');
+      window.history.forward();
+    }
+
+    if (d.gesture === 'PAUSE' || d.gesture === 'IDLE') {
+      cursor.style.display = 'none';
+      dot.style.display = 'none';
+    }
+  }
+
+  function dispatch(x, y, types) {
+    const el = document.elementFromPoint(x, y);
+    if (el) types.forEach(t =>
+      el.dispatchEvent(new MouseEvent(t, { bubbles: true, clientX: x, clientY: y }))
+    );
+  }
+
+  function flashCursor(color) {
+    cursor.style.background = color + '99';
+    setTimeout(() => cursor.style.background = 'rgba(78,219,122,0.2)', 200);
+  }
+
+  function takeScreenshot() {
+    const sc = document.createElement('canvas');
+    sc.width  = canvas.width;
+    sc.height = canvas.height;
+    sc.getContext('2d').drawImage(canvas, 0, 0);
+    const link = document.createElement('a');
+    link.download = 'hci_screenshot_' + Date.now() + '.png';
+    link.href = sc.toDataURL('image/png');
+    link.click();
+    bottomStat.textContent = '📸 Screenshot saved!';
+    setTimeout(() => bottomStat.textContent = '', 2000);
+  }
+
+  // ── Smooth cursor animation ───────────────────────────────
+  (function animate() {
+    curX += (targetX - curX) * SMOOTH;
+    curY += (targetY - curY) * SMOOTH;
+    cursor.style.left = curX + 'px';
+    cursor.style.top  = curY + 'px';
+    requestAnimationFrame(animate);
+  })();
+
+  // ── Camera ────────────────────────────────────────────────
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 720, height: 405, facingMode: 'user' }, audio: false
+      });
+      video.srcObject = stream;
+      video.onloadedmetadata = () => {
+        streaming = true;
+        startWrap.classList.add('hidden');
+        bottomStat.textContent = 'Camera active — show your face to authenticate';
+        sendFrames();
+      };
+    } catch(e) {
+      bottomStat.textContent = '⚠ Camera error: ' + e.message;
+    }
+  }
+
+  function sendFrames() {
+    if (!streaming) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    socket.emit('frame', { image: canvas.toDataURL('image/jpeg', 0.65) });
+    setTimeout(sendFrames, 80);
+  }
+
+  // ── Keyboard ──────────────────────────────────────────────
+  document.addEventListener('keydown', e => {
+    if (e.key === 'f' || e.key === 'F') {
+      freeze = !freeze;
+      bottomStat.textContent = freeze ? '❄ Frozen — press F to unfreeze' : '✓ Control ACTIVE';
+    }
+  });
+</script>
+</body>
+</html>

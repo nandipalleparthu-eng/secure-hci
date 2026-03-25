@@ -244,31 +244,59 @@ def apply_controls(
         smoother.reset()
         return
 
-    if not gesture.hand_present:
-        smoother.reset()
-        return
-
-    if gesture.state == GestureState.PAUSE:
+    if not gesture.hand_present or gesture.state == GestureState.PAUSE:
         smoother.reset()
         return
 
     if gesture.state == GestureState.MOVE:
         raw_x = int(np.clip(gesture.pointer_x, 0.0, 1.0) * SCREEN_W)
         raw_y = int(np.clip(gesture.pointer_y, 0.0, 1.0) * SCREEN_H)
-        smooth_x, smooth_y = smoother.smooth(raw_x, raw_y)
-        pyautogui.moveTo(int(smooth_x), int(smooth_y))
-        return
+        sx, sy = smoother.smooth(raw_x, raw_y)
+        pyautogui.moveTo(int(sx), int(sy))
 
-    if gesture.state == GestureState.CLICK and click_debouncer.is_ready():
+    elif gesture.state == GestureState.CLICK and click_debouncer.is_ready():
         pyautogui.click()
         click_debouncer.trigger()
-        return
 
-    if gesture.state == GestureState.SCROLL and scroll_debouncer.is_ready():
-        scroll_amount = int(np.clip(gesture.scroll_delta * CONFIG["scroll_strength"], -500, 500))
-        if scroll_amount != 0:
-            pyautogui.scroll(scroll_amount)
+    elif gesture.state == GestureState.RIGHT_CLICK and click_debouncer.is_ready():
+        pyautogui.rightClick()
+        click_debouncer.trigger()
+
+    elif gesture.state == GestureState.DOUBLE_CLICK and click_debouncer.is_ready():
+        pyautogui.doubleClick()
+        click_debouncer.trigger()
+
+    elif gesture.state == GestureState.DRAG:
+        raw_x = int(np.clip(gesture.pointer_x, 0.0, 1.0) * SCREEN_W)
+        raw_y = int(np.clip(gesture.pointer_y, 0.0, 1.0) * SCREEN_H)
+        sx, sy = smoother.smooth(raw_x, raw_y)
+        pyautogui.dragTo(int(sx), int(sy), button='left')
+
+    elif gesture.state == GestureState.SCROLL and scroll_debouncer.is_ready():
+        amt = int(np.clip(gesture.scroll_delta * CONFIG["scroll_strength"], -500, 500))
+        if amt != 0:
+            pyautogui.scroll(amt)
             scroll_debouncer.trigger()
+
+    elif gesture.state == GestureState.SWITCH_TAB and click_debouncer.is_ready():
+        pyautogui.hotkey('ctrl', 'tab')
+        click_debouncer.trigger()
+
+    elif gesture.state == GestureState.SCREENSHOT and click_debouncer.is_ready():
+        pyautogui.hotkey('win', 'shift', 's')
+        click_debouncer.trigger()
+
+    elif gesture.state == GestureState.ZOOM_IN and scroll_debouncer.is_ready():
+        pyautogui.hotkey('ctrl', '+')
+        scroll_debouncer.trigger()
+
+    elif gesture.state == GestureState.WORKSPACE_LEFT and click_debouncer.is_ready():
+        pyautogui.hotkey('ctrl', 'win', 'left')
+        click_debouncer.trigger()
+
+    elif gesture.state == GestureState.WORKSPACE_RIGHT and click_debouncer.is_ready():
+        pyautogui.hotkey('ctrl', 'win', 'right')
+        click_debouncer.trigger()
 
 
 def main() -> None:

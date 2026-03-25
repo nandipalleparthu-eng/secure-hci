@@ -32,17 +32,18 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "securehci-secret")
 app.register_blueprint(admin_bp)
+ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "*")
 socketio = SocketIO(
     app,
-    cors_allowed_origins="*",
+    cors_allowed_origins=ALLOWED_ORIGINS,
     async_mode="threading",
     max_http_buffer_size=5 * 1024 * 1024,
 )
 
 CONFIG = {
     "known_faces_dir": "data/known_faces",
-    "face_recognition_interval": 6,
-    "face_tolerance": 0.18,
+    "face_recognition_interval": 4,
+    "face_tolerance": 0.30,
     "face_resize_scale": 0.5,
     "face_state_timeout": 3.0,
     "gesture_detection_confidence": 0.70,
