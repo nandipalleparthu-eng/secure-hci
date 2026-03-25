@@ -83,8 +83,8 @@ def _up(tip, pip, mcp) -> bool:
 
 
 def _curled(tip, mcp) -> bool:
-    """Finger is curled: tip near or below mcp."""
-    return tip.y >= mcp.y - 0.03
+    """Finger is deeply curled: tip clearly below mcp."""
+    return tip.y >= mcp.y + 0.02
 
 
 def _thumb_out(thumb_tip, thumb_ip, index_mcp) -> bool:
@@ -149,18 +149,19 @@ def _classify(lm, swipe_buf: deque, frame_w: int) -> tuple[GestureState, float, 
             swipe_buf.clear()
             return GestureState.SCREENSHOT, 0.0, dist_cm
 
-    # ── 4. DOUBLE CLICK — 3-finger pinch ─────────────────────
-    if pinch_i < 0.22 and pinch_m < 0.22 and pinch_r < 0.22:
+    # ── 4. DOUBLE CLICK — all 3 pinch fingers close ──────────
+    # Must check BEFORE single CLICK to avoid being swallowed
+    if pinch_i < 0.35 and pinch_m < 0.35 and pinch_r < 0.35:
         swipe_buf.clear()
         return GestureState.DOUBLE_CLICK, 0.0, dist_cm
 
-    # ── 5. CLICK — thumb+index pinch, middle+ring curled ─────
-    if pinch_i < 0.28 and m_curl and r_curl:
+    # ── 5. CLICK — thumb+index pinch only, middle+ring not up ──
+    if pinch_i < 0.35 and not m_up and not r_up:
         swipe_buf.clear()
         return GestureState.CLICK, 0.0, dist_cm
 
     # ── 6. DRAG — index+middle up AND tips crossed ────────────
-    if i_up and m_up and r_curl and p_curl:
+    if i_up and m_up and not r_up and not p_up:
         tip_d = _dist(it, mdt)
         pip_d = _dist(ip, mdp)
         if tip_d < pip_d * 0.55:
@@ -171,18 +172,18 @@ def _classify(lm, swipe_buf: deque, frame_w: int) -> tuple[GestureState, float, 
             swipe_buf.clear()
             return GestureState.RIGHT_CLICK, 0.0, dist_cm
 
-    # ── 8. SWITCH TAB — pinky+thumb, others curled ───────────
-    if p_up and th_up and i_curl and m_curl and r_curl:
+    # ── 8. SWITCH TAB — pinky+thumb, others not extended ──────
+    if p_up and th_up and not i_up and not m_up and not r_up:
         swipe_buf.clear()
         return GestureState.SWITCH_TAB, 0.0, dist_cm
 
-    # ── 9. ZOOM IN — index+pinky up, middle+ring curled ──────
-    if i_up and p_up and m_curl and r_curl and not th_up:
+    # ── 9. ZOOM IN — index+pinky up, middle+ring not extended ──
+    if i_up and p_up and not m_up and not r_up and not th_up:
         swipe_buf.clear()
         return GestureState.ZOOM_IN, 0.0, dist_cm
 
     # ── 10. MOVE — index only + swipe ────────────────────────
-    if i_up and m_curl and r_curl and p_curl:
+    if i_up and not m_up and not r_up and not p_up:
         swipe_buf.append(it.x)
         if len(swipe_buf) == swipe_buf.maxlen:
             dx = swipe_buf[-1] - swipe_buf[0]
