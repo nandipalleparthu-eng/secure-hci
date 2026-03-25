@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: secure-hci
+    runtime: python
+    buildCommand: pip install -r requirements-web.txt
+    startCommand: python webapp.py
+    envVars:
+      - key: PORT
+        value: 5000
+    plan: free

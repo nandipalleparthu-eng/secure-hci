@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.pyo
+*.spec
+build/
+dist/
+.env
+debug_frame.jpg
+diag.py
+fix_face.py
+data/known_faces/*.jpg
+data/known_faces/*.jpeg
+data/known_faces/*.png
+data/known_faces/*.bmp

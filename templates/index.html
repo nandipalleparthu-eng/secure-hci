@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Secure HCI System</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #080c14;
+      color: #e0e8f0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 16px;
+    }
+
+    header {
+      text-align: center;
+    }
+    header h1 {
+      font-size: 1.4rem;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #7ec8f8;
+    }
+    header p {
+      font-size: 0.75rem;
+      color: #445;
+      margin-top: 4px;
+      letter-spacing: 1px;
+    }
+
+    #main-card {
+      position: relative;
+      width: min(720px, 100vw - 32px);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1.5px solid #1a3050;
+      box-shadow: 0 0 40px rgba(0,100,200,0.15);
+    }
+
+    video { display: none; }
+
+    #canvas {
+      display: block;
+      width: 100%;
+      background: #000;
+    }
+
+    /* Status bar on top of video */
+    #status-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      background: rgba(5, 10, 20, 0.82);
+      padding: 10px 16px;
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      backdrop-filter: blur(4px);
+    }
+
+    .stat { display: flex; flex-direction: column; gap: 1px; }
+    .stat .label { font-size: 0.62rem; color: #445; text-transform: uppercase; letter-spacing: 1px; }
+    .stat .value { font-size: 0.88rem; font-weight: 600; }
+
+    .c-green  { color: #4edb7a; }
+    .c-red    { color: #f05555; }
+    .c-blue   { color: #5ab4ff; }
+    .c-yellow { color: #ffd966; }
+    .c-gray   { color: #667; }
+    .c-white  { color: #dde; }
+
+    /* Bottom hint bar */
+    #hint-bar {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: rgba(5,10,20,0.75);
+      padding: 6px 14px;
+      font-size: 0.68rem;
+      color: #445;
+      letter-spacing: 1px;
+      text-align: right;
+    }
+
+    /* Gesture dot on canvas */
+    #gesture-dot {
+      position: absolute;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: rgba(78, 219, 122, 0.5);
+      border: 2px solid #4edb7a;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      display: none;
+      transition: left 0.05s, top 0.05s;
+    }
+
+    /* Floating cursor shown on page */
+    #cursor {
+      position: fixed;
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      border: 2px solid #4edb7a;
+      background: rgba(78,219,122,0.2);
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      z-index: 9999;
+      display: none;
+      transition: background 0.15s;
+    }
+    #cursor.click { background: rgba(78,219,122,0.85); }
+
+    /* Start button */
+    #start-wrap {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(5,10,20,0.88);
+      gap: 12px;
+    }
+    #start-wrap.hidden { display: none; }
+
+    #start-btn {
+      padding: 12px 36px;
+      background: #1a4a8a;
+      border: 1.5px solid #2a6ac0;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: background 0.2s;
+    }
+    #start-btn:hover { background: #2060b0; }
+
+    #start-wrap p {
+      font-size: 0.78rem;
+      color: #556;
+      text-align: center;
+      max-width: 300px;
+    }
+
+    /* Bottom status text */
+    #bottom-status {
+      font-size: 0.75rem;
+      color: #445;
+      letter-spacing: 1px;
+      text-align: center;
+    }
+
+    /* Gesture guide */
+    #guide {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .gesture-card {
+      background: #0d1520;
+      border: 1px solid #1a2a3a;
+      border-radius: 8px;
+      padding: 8px 14px;
+      text-align: center;
+      font-size: 0.75rem;
+      color: #556;
+    }
+    .gesture-card .icon { font-size: 1.4rem; display: block; margin-bottom: 4px; }
+    .gesture-card .name { color: #7ec8f8; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🔐 Secure HCI System</h1>
+  <p>Face Authentication + Gesture Mouse Control</p>
+</header>
+
+<div id="main-card">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="canvas" width="720" height="405"></canvas>
+
+  <div id="status-overlay">
+    <div class="stat">
+      <span class="label">User</span>
+      <span class="value c-gray" id="s-user">—</span>
+    </div>
+    <div class="stat">
+      <span class="label">Authorized</span>
+      <span class="value c-gray" id="s-auth">—</span>
+    </div>
+    <div class="stat">
+      <span class="label">Gesture</span>
+      <span class="value c-gray" id="s-gesture">—</span>
+    </div>
+    <div class="stat">
+      <span class="label">Faces</span>
+      <span class="value c-yellow" id="s-faces">—</span>
+    </div>
+    <div class="stat">
+      <span class="label">Control</span>
+      <span class="value c-gray" id="s-control">—</span>
+    </div>
+    <div class="stat">
+      <span class="label">FPS</span>
+      <span class="value c-white" id="s-fps">—</span>
+    </div>
+  </div>
+
+  <div id="gesture-dot"></div>
+
+  <div id="hint-bar">F — Freeze/Unfreeze &nbsp;|&nbsp; Webcam required</div>
+
+  <div id="start-wrap" id="start-wrap">
+    <button id="start-btn" onclick="startCamera()">▶ &nbsp;Start Camera</button>
+    <p>Allow webcam access when prompted. Your face will be authenticated in real time.</p>
+  </div>
+</div>
+
+<div id="bottom-status">Waiting for camera...</div>
+
+<div id="guide">
+  <div class="gesture-card"><span class="icon">☝️</span><span class="name">MOVE</span><br>Index finger only</div>
+  <div class="gesture-card"><span class="icon">🤏</span><span class="name">CLICK</span><br>Pinch thumb + index</div>
+  <div class="gesture-card"><span class="icon">🖐️</span><span class="name">SCROLL</span><br>Open palm</div>
+  <div class="gesture-card"><span class="icon">✊</span><span class="name">PAUSE</span><br>Fist</div>
+</div>
+
+<div id="cursor"></div>
+
+<script>
+  const video      = document.getElementById('video');
+  const canvas     = document.getElementById('canvas');
+  const ctx        = canvas.getContext('2d');
+  const cursor     = document.getElementById('cursor');
+  const dot        = document.getElementById('gesture-dot');
+  const startWrap  = document.getElementById('start-wrap');
+  const bottomStat = document.getElementById('bottom-status');
+
+  const sUser    = document.getElementById('s-user');
+  const sAuth    = document.getElementById('s-auth');
+  const sGesture = document.getElementById('s-gesture');
+  const sFaces   = document.getElementById('s-faces');
+  const sControl = document.getElementById('s-control');
+  const sFps     = document.getElementById('s-fps');
+
+  const socket = io({ transports: ['websocket'] });
+
+  let streaming = false;
+  let freeze = false;
+  let frameCount = 0;
+  let lastFpsTime = performance.now();
+
+  // Smooth cursor state
+  let curX = window.innerWidth / 2;
+  let curY = window.innerHeight / 2;
+  let targetX = curX, targetY = curY;
+  const SMOOTH = 0.18;
+
+  let lastClick  = 0;
+  let lastScroll = 0;
+  const CLICK_CD  = 800;
+  const SCROLL_CD = 100;
+
+  // ── Socket events ──────────────────────────────────────────
+  socket.on('connect', () => {
+    bottomStat.textContent = 'Connected to server ✓  —  Click Start Camera';
+  });
+
+  socket.on('disconnect', () => {
+    bottomStat.textContent = '⚠ Disconnected from server';
+  });
+
+  socket.on('result', (d) => {
+    updateUI(d);
+    if (d.hand_present && d.authorized && !freeze) {
+      handleGesture(d);
+    } else {
+      dot.style.display = 'none';
+      cursor.style.display = 'none';
+    }
+  });
+
+  // ── UI update ──────────────────────────────────────────────
+  function updateUI(d) {
+    sUser.textContent  = d.user;
+    sUser.className    = 'value ' + (d.authorized ? 'c-green' : 'c-gray');
+
+    sAuth.textContent  = d.authorized ? 'YES ✓' : 'NO';
+    sAuth.className    = 'value ' + (d.authorized ? 'c-green' : 'c-red');
+
+    sFaces.textContent = d.face_count;
+
+    const gc = { MOVE:'c-green', CLICK:'c-blue', SCROLL:'c-blue', PAUSE:'c-red', IDLE:'c-gray' };
+    sGesture.textContent = d.gesture;
+    sGesture.className   = 'value ' + (gc[d.gesture] || 'c-gray');
+
+    const ctrl = d.authorized && !freeze;
+    sControl.textContent = ctrl ? 'ENABLED' : 'DISABLED';
+    sControl.className   = 'value ' + (ctrl ? 'c-green' : 'c-red');
+
+    // FPS
+    frameCount++;
+    const now = performance.now();
+    if (now - lastFpsTime >= 1000) {
+      sFps.textContent = (frameCount * 1000 / (now - lastFpsTime)).toFixed(1);
+      frameCount = 0;
+      lastFpsTime = now;
+    }
+  }
+
+  // ── Gesture → mouse ───────────────────────────────────────
+  function handleGesture(d) {
+    // Show dot on canvas
+    dot.style.display = 'block';
+    dot.style.left = (d.pointer_x * 100) + '%';
+    dot.style.top  = (d.pointer_y * 100) + '%';
+
+    if (d.gesture === 'MOVE') {
+      targetX = d.pointer_x * window.innerWidth;
+      targetY = d.pointer_y * window.innerHeight;
+      cursor.style.display = 'block';
+    }
+
+    if (d.gesture === 'CLICK') {
+      const now = Date.now();
+      if (now - lastClick > CLICK_CD) {
+        lastClick = now;
+        doClick(Math.round(curX), Math.round(curY));
+      }
+    }
+
+    if (d.gesture === 'SCROLL') {
+      const now = Date.now();
+      if (now - lastScroll > SCROLL_CD) {
+        lastScroll = now;
+        const el = document.elementFromPoint(curX, curY);
+        if (el) el.dispatchEvent(new WheelEvent('wheel', {
+          deltaY: -(d.scroll_delta * 120), bubbles: true, cancelable: true
+        }));
+      }
+    }
+
+    if (d.gesture === 'PAUSE' || d.gesture === 'IDLE') {
+      cursor.style.display = 'none';
+    }
+  }
+
+  function doClick(x, y) {
+    cursor.classList.add('click');
+    setTimeout(() => cursor.classList.remove('click'), 200);
+    const el = document.elementFromPoint(x, y);
+    if (el) {
+      ['mousedown','mouseup','click'].forEach(type =>
+        el.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: y }))
+      );
+    }
+  }
+
+  // ── Smooth cursor animation ────────────────────────────────
+  (function animate() {
+    curX += (targetX - curX) * SMOOTH;
+    curY += (targetY - curY) * SMOOTH;
+    cursor.style.left = curX + 'px';
+    cursor.style.top  = curY + 'px';
+    requestAnimationFrame(animate);
+  })();
+
+  // ── Camera ─────────────────────────────────────────────────
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 720, height: 405, facingMode: 'user' }, audio: false
+      });
+      video.srcObject = stream;
+      video.onloadedmetadata = () => {
+        streaming = true;
+        startWrap.classList.add('hidden');
+        bottomStat.textContent = 'Camera active — show your face to authenticate';
+        sendFrames();
+      };
+    } catch (e) {
+      bottomStat.textContent = '⚠ Camera error: ' + e.message;
+    }
+  }
+
+  function sendFrames() {
+    if (!streaming) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    socket.emit('frame', { image: canvas.toDataURL('image/jpeg', 0.65) });
+    setTimeout(sendFrames, 80); // ~12 fps
+  }
+
+  // ── Keyboard ───────────────────────────────────────────────
+  document.addEventListener('keydown', e => {
+    if (e.key === 'f' || e.key === 'F') {
+      freeze = !freeze;
+      bottomStat.textContent = freeze
+        ? '❄ Control FROZEN — press F to unfreeze'
+        : '✓ Control ACTIVE';
+    }
+  });
+</script>
+</body>
+</html>
