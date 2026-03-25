@@ -167,14 +167,18 @@ def on_frame(data):
     })
 
 
+port = int(os.environ.get("PORT", 5000))
+
+# Required for Railway/Linux headless environment
+os.environ.setdefault("DISPLAY", "")
+os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "0"
+
 if __name__ == "__main__":
     hostname = socket.gethostname()
     try:
         local_ip = socket.gethostbyname(hostname)
     except Exception:
         local_ip = "localhost"
-
-    port = int(os.environ.get("PORT", 5000))
     print(f"\n{'='*52}")
     print(f"  Secure HCI Web App")
     print(f"  Local:   http://localhost:{port}")

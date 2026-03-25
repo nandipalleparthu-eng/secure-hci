@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["libGL", "libglib", "python310"]
+
+[phases.install]
+cmds = ["pip install -r requirements.txt"]
+
+[start]
+cmd = "python webapp.py"
